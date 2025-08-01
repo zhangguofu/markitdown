@@ -686,11 +686,20 @@ class MarkItDown:
         # Call magika to guess from the stream
         cur_pos = file_stream.tell()
         try:
-            result = self._magika.identify_stream(file_stream)
-            if result.status == "ok" and result.prediction.output.label != "unknown":
+            # Read stream content and use identify_bytes instead of identify_stream
+            file_stream.seek(cur_pos)
+            content = file_stream.read()
+            result = self._magika.identify_bytes(content)
+            # Use the correct attribute path for MagikaResult
+            if hasattr(result, 'output') and result.output.ct_label != "unknown":
+                # Check if the output has a valid mime type
+                if hasattr(result.output, 'mime_type') and result.output.mime_type:
+                    is_text = result.output.mime_type.startswith('text/')
+                else:
+                    is_text = False
                 # If it's text, also guess the charset
                 charset = None
-                if result.prediction.output.is_text:
+                if is_text:
                     # Read the first 4k to guess the charset
                     file_stream.seek(cur_pos)
                     stream_page = file_stream.read(4096)
@@ -701,23 +710,31 @@ class MarkItDown:
 
                 # Normalize the first extension listed
                 guessed_extension = None
-                if len(result.prediction.output.extensions) > 0:
-                    guessed_extension = "." + result.prediction.output.extensions[0]
+                # MagikaOutputFields doesn't have extensions attribute
+                # Use mimetypes to guess extension from mime type
+                guessed_extension = None
+                if hasattr(result.output, 'mime_type') and result.output.mime_type:
+                    _e = mimetypes.guess_all_extensions(result.output.mime_type, strict=False)
+                    if len(_e) > 0:
+                        guessed_extension = _e[0]
 
                 # Determine if the guess is compatible with the base guess
                 compatible = True
                 if (
                     base_guess.mimetype is not None
-                    and base_guess.mimetype != result.prediction.output.mime_type
+                    and base_guess.mimetype != result.output.mime_type
                 ):
                     compatible = False
 
-                if (
-                    base_guess.extension is not None
-                    and base_guess.extension.lstrip(".")
-                    not in result.prediction.output.extensions
-                ):
-                    compatible = False
+                # Check if the extension is compatible with the mime type
+                if hasattr(result.output, 'mime_type') and result.output.mime_type:
+                    _extensions = mimetypes.guess_all_extensions(result.output.mime_type, strict=False)
+                    _extensions = [ext.lstrip(".") for ext in _extensions]  # Remove leading dot
+                    if (
+                        base_guess.extension is not None
+                        and base_guess.extension.lstrip(".") not in _extensions
+                    ):
+                        compatible = False
 
                 if (
                     base_guess.charset is not None
@@ -729,8 +746,7 @@ class MarkItDown:
                     # Add the compatible base guess
                     guesses.append(
                         StreamInfo(
-                            mimetype=base_guess.mimetype
-                            or result.prediction.output.mime_type,
+                            mimetype=base_guess.mimetype or result.output.mime_type,
                             extension=base_guess.extension or guessed_extension,
                             charset=base_guess.charset or charset,
                             filename=base_guess.filename,
@@ -743,7 +759,7 @@ class MarkItDown:
                     guesses.append(enhanced_guess)
                     guesses.append(
                         StreamInfo(
-                            mimetype=result.prediction.output.mime_type,
+                            mimetype=result.output.mime_type,
                             extension=guessed_extension,
                             charset=charset,
                             filename=base_guess.filename,

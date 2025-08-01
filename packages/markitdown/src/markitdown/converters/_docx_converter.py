@@ -74,6 +74,8 @@ class DocxConverter(HtmlConverter):
 
         style_map = kwargs.get("style_map", None)
         pre_process_stream = pre_process_docx(file_stream)
+        # Add keep_data_uris=True to kwargs
+        kwargs['keep_data_uris'] = True
         return self._html_converter.convert_string(
             mammoth.convert_to_html(pre_process_stream, style_map=style_map).value,
             **kwargs,
