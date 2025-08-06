@@ -147,9 +147,25 @@ class PptxConverter(DocumentConverter):
                         b64_string = base64.b64encode(blob).decode("utf-8")
                         md_content += f"\n![{alt_text}](data:{content_type};base64,{b64_string})\n"
                     else:
-                        # A placeholder name
+                        # Generate a unique filename
                         filename = re.sub(r"\W", "", shape.name) + ".jpg"
-                        md_content += "\n![" + alt_text + "](" + filename + ")\n"
+                        
+                        # Get image output directory from kwargs
+                        image_output_dir = kwargs.get("image_output_dir")
+                        if image_output_dir is not None:
+                            # Ensure the output directory exists
+                            os.makedirs(image_output_dir, exist_ok=True)
+                            
+                            # Save the image
+                            image_path = os.path.join(image_output_dir, filename)
+                            with open(image_path, "wb") as f:
+                                f.write(shape.image.blob)
+                            
+                            # Use relative path in markdown
+                            md_content += f"\n![{alt_text}]({os.path.basename(image_path)})\n"
+                        else:
+                            # Fallback to placeholder if no output directory specified
+                            md_content += "\n![" + alt_text + "] (" + filename + ")\n"
 
                 # Tables
                 if self._is_table(shape):

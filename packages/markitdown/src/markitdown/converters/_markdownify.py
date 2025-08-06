@@ -101,9 +101,45 @@ class _CustomMarkdownify(markdownify.MarkdownConverter):
         ):
             return alt
 
-        # Remove dataURIs
+        # Handle data URIs
         if src.startswith("data:") and not self.options["keep_data_uris"]:
-            src = src.split(",")[0] + "..."
+            # If image_output_dir is provided, save the image and return a reference
+            image_output_dir = self.options.get("image_output_dir")
+            if image_output_dir is not None:
+                import base64
+                import os
+                import uuid
+                
+                # Create output directory if it doesn't exist
+                os.makedirs(image_output_dir, exist_ok=True)
+                
+                # Generate a unique filename
+                filename = f"image_{uuid.uuid4().hex[:8]}"
+                
+                # Determine file extension from data URI
+                if ";" in src:
+                    mime_type = src.split(";").pop(0).split(":").pop(1)
+                    extension = mime_type.split("/").pop(1) if mime_type else "png"
+                    filename += f".{extension}"
+                else:
+                    filename += ".png"
+                
+                # Decode base64 data and save
+                try:
+                    data = src.split(",")[1]
+                    image_data = base64.b64decode(data)
+                    image_path = os.path.join(image_output_dir, filename)
+                    with open(image_path, "wb") as f:
+                        f.write(image_data)
+                    
+                    # Return reference to saved image with relative path
+                    src = os.path.join(os.path.basename(image_output_dir), os.path.basename(image_path))
+                except Exception:
+                    # If saving fails, fall back to truncated data URI
+                    src = src.split(",")[0] + "..."
+            else:
+                # If no image_output_dir, just truncate data URI
+                src = src.split(",")[0] + "..."
 
         return "![%s](%s%s)" % (alt, src, title_part)
 

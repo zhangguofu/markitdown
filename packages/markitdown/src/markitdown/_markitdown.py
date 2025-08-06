@@ -99,8 +99,12 @@ class MarkItDown:
         *,
         enable_builtins: Union[None, bool] = None,
         enable_plugins: Union[None, bool] = None,
+        image_output_dir: Optional[str] = None,
         **kwargs,
     ):
+        self._image_output_dir = image_output_dir
+        if self._image_output_dir is not None and not os.path.exists(self._image_output_dir):
+            os.makedirs(self._image_output_dir, exist_ok=True)
         self._builtins_enabled = False
         self._plugins_enabled = False
 
@@ -575,6 +579,10 @@ class MarkItDown:
 
                     if stream_info.url is not None:
                         _kwargs["url"] = stream_info.url
+
+                # Pass image output directory to converters
+                if self._image_output_dir is not None:
+                    _kwargs["image_output_dir"] = self._image_output_dir
 
                 # Check if the converter will accept the file, and if so, try to convert it
                 _accepts = False

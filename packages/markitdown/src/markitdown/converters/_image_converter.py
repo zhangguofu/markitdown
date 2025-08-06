@@ -80,6 +80,27 @@ class ImageConverter(DocumentConverter):
             if llm_description is not None:
                 md_content += "\n# Description:\n" + llm_description.strip() + "\n"
 
+        # Get image output directory from kwargs
+        image_output_dir = kwargs.get("image_output_dir")
+        if image_output_dir is not None:
+            # Generate a unique filename
+            filename = stream_info.filename or "image" + stream_info.extension or ".png"
+            filename = re.sub(r"\W", "", filename)
+            
+            # Ensure the output directory exists
+            os.makedirs(image_output_dir, exist_ok=True)
+            
+            # Save the image
+            image_path = os.path.join(image_output_dir, filename)
+            cur_pos = file_stream.tell()
+            file_stream.seek(0)
+            with open(image_path, "wb") as f:
+                f.write(file_stream.read())
+            file_stream.seek(cur_pos)
+            
+            # Add image reference to markdown
+            md_content += f"\n![Image]({os.path.basename(image_path)})\n"
+        
         return DocumentConverterResult(
             markdown=md_content,
         )
